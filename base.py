@@ -1,26 +1,24 @@
-from .setup import Tokenizer,get_stats,merge
+from setup import Tokenizer,get_stats,merge
 
 class BaseTokenizer(Tokenizer):
-    def __init__(self,text):
-        super().__inti__()
-    def train(self,text,vocabsize,verbose):
+    def __init__(self):
+        super().__init__()  
+    
+    def train(self,text,vocabsize,verbose=False):
         assert vocabsize>=256,"vocab size must be large than 256."
         
         num_embedding=vocabsize-256
         encoded=text.encode("utf-8")
         ids=list(encoded)
-        
         vocab={idx:bytes([idx]) for idx in range(256)}
-        merges={}
-        i=0
-        while i<num_embedding:
-            ids=get_stats(ids)  #get the pair of numbers
-            pair=max(ids,key=ids.get)
+        merges={}  #the parameter that is being trained
+        for i in range(num_embedding):
+            stats=get_stats(ids)  #get the pair of numbers
+            pair=max(stats,key=stats.get)
             idx=256+i
-            
-            ids=merges(ids,pair,idx)
+            ids=merge(ids,pair,idx)
             merges[pair]=idx
-            vocab[idx]=vocab[pair[0]]+vocab[pair[1]]
+            vocab[idx]=vocab[pair[0]]+vocab[pair[1]]   #concatination of values
 
             if verbose:   #ready for update
                 print(f"{i}/{num_embedding} {pair[0]} {pair[1]}-->{idx}")
@@ -34,12 +32,12 @@ class BaseTokenizer(Tokenizer):
     
     def encode(self,text):
         ids=list(text.encode("utf-8"))
-        while len(stats)>2:
+        while len(ids)>2:
             stats=get_stats(ids)
             pair=min(stats,key=lambda a:self.merge.get(a,float("inf")))
-            stats=merge(stats,pair,)
-            if pair not in self.merge:
-                break
+           # stats=merge(stats,pair,)
+            if pair not in self.merge:   #will break free if there are no more merges
+                break  
             idx=self.merge[pair]
-            stats=merge(stats,pair,idx)
-        return stats
+            ids=merge(stats,pair,idx)
+        return ids

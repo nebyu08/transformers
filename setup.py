@@ -11,7 +11,7 @@ def merge(ids,pair,idx):
     new_ids=[]
     i=0
     while i<len(ids):
-        if (ids[i]==pair[0] and ids[i+1]==pair[1]):
+        if (i<len(ids)-1 and ids[i]==pair[0] and ids[i+1]==pair[1]):
             new_ids.append(idx)
             i+=2
         else:
@@ -35,11 +35,11 @@ def back_to_token(s:bytes):
     return text
 
 class Tokenizer:
-    def __init__(self,text):
+    def __init__(self):
         self.merges={}  #contains the new merged strings
         self.pattern={}
         self.special_tokens={}  #this are
-        self.vocab=self._build_vocab()  #contains the vocabulary of the embedder
+        self.vocab=self._built_vocab()  #contains the vocabulary of the embedder
 
     def train(self,text,vocab_size,verbose):
         raise NotImplementedError
@@ -126,11 +126,3 @@ class Tokenizer:
                 idx+=1
         self.merges=merges
         self.special_values=special_values
-
-
-
-
-
-
-
-
