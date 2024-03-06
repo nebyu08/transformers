@@ -39,5 +39,5 @@ class BaseTokenizer(Tokenizer):
             if pair not in self.merge:   #will break free if there are no more merges
                 break  
             idx=self.merge[pair]
-            ids=merge(stats,pair,idx)
+            ids=merge(ids,pair,idx)
         return ids
