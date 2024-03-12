@@ -97,18 +97,18 @@ class GPT(nn.Module):
     @staticmethod
     def get_default_config():    
         C=CN()  #an instance of the yacs(yet another configuration)
-        C.n_layers=None
-        C.block_size=None
-        C.emb_size=None
+        C.n_layer=2
+        C.block_size=12
+        C.emb_size=300
         C.vocab_size=123 #None
-        C.num_heads=None
+        C.num_heads=5
         C.att_dropout=0.1
         C.emb_drop=0.0
         C.resid_dropout=0.0
         C.bias=True
         C.num_mlp=6
         C.block_size=123 #None
-        C.model_type="gpt2"  #this is the equivalent of none for string present here 
+        C.model_type=None  #this is the equivalent of none for string present here 
         return C
 
     def __init__(self, config=None):
@@ -117,19 +117,19 @@ class GPT(nn.Module):
             config=GPT.get_default_config()
 
         assert config.block_size is not None,"must setup the block size" 
-        assert config.vocab_size is not None
+        assert config.vocab_size is not None,"must setup the vocab size"
+        self.block_size=config.block_size
 
-        params_given=all([config.n_layers is not None,config.num_heads is not None,config.emb_size is not None]) #raised if all are true or all are false
+        params_given=all([config.n_layer is not None,config.num_heads is not None,config.emb_size is not None]) #raised if all are true or all are false
         type_given=config.model_type is not None
         assert type_given^params_given,"either specify the modl type or give the hyper-parameters." #this makes either the model is given or the parameters of the model is given
-
-        
-        self.transformes=nn.ModuleDict(dict(
+  
+        self.transformer=nn.ModuleDict(dict(
             wte=nn.Embedding(config.vocab_size,config.emb_size),  #this is the word to embdding dimension
             etp=nn.Embedding(config.block_size,config.emb_size),  #this is adding of the positional embedding to each tokens(embdding know)
             drop=nn.Dropout(config.emb_drop),
-            blocks=nn.ModuleList([Block(config) for _ in range(config.n_layers)]),
-            ly_n=nn.Dropout(config.resid_dropout)
+            blocks=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+            ly_n=nn.LayerNorm(config.emb_size)  #change from dropout to layernorm
         ))
         #this is the last layer(the language model head)
         self.lm_head=nn.Linear(config.emb_size,config.vocab_size)
@@ -212,6 +212,56 @@ class GPT(nn.Module):
         optimizer=torch.optim.Adam(optim_groups,lr=trainer_config.lr)
         return optimizer
 
+    def forward(self,ids,targets=None):
+        b,t=ids.size(0),ids.size(1)  #shape is b,t
+        assert t<=self.block_size,"the dimension of the inputs is much larger than the block size"
+        device=ids.device
+        pos=torch.arange(0,t,dtype=torch.long,device=device).unsqueeze(0) #shape is (1,t)..note make sure to make the data type torch.long
+        emb_token=self.transformer.wte(ids) #shape is (b,t,emb_size)
+        pos_emb=self.transformer.etp(pos) #shape is (1,t,emb_size)
+        x=self.transformer.drop(emb_token+pos_emb)
+        for block in self.transformer.blocks:
+            x=block(x)
+        x=self.transformer.ly_n(x)  
 
-gpts=GPT()
-print(gpts.config.__str__())
+        logits=self.lm_head(x)  #this is the logits
+        loss=None
+
+        if targets is not None:
+            loss=F.cross_entropy(logits.view(-1,logits.size(-1)),targets.view(-1)) 
+
+        return logits,loss
+
+    torch.no_grad()
+    def generate(self,ids,temprature=1.0,max_tokens=200,top_k=None,do_samples=False):
+        """for generating new tokens from given tokens,during the process the output of this
+        is contineuosly fedback to the neural nets.
+
+        Args:
+            ids (_type_): _description_
+            temprature (_type_): _description_
+            max_tokens (_type_): _description_
+            tok_k (_type_, optional): _description_. Defaults to None.
+        """
+        for _ in range(max_tokens):
+            ids=ids if ids.size(1) <= self.block_size else ids[:,:-self.block_size,:]
+            logits,_=self(ids)  #the logists are of shape (B,N,vocab)
+            logits=logits[:,-1,:]/temprature  #dividing along the last element of the second dimension
+            if top_k is not None:
+                top_log,_=torch.topk(logits,top_k)   
+                logits[logits<top_log[:,[-1]]]=float("-inf")
+            
+            #normalizing the probability distribution
+            probs=F.softmax(logits,dim=-1)
+            if do_samples:
+                ids_next=torch.multinomial(logits,dim=-1)
+            else:
+                _,ids_next=torch.topk(logits,k=top_k)
+            
+            #concatinate the values
+            ids=torch.cat((ids,ids_next),dim=1)  #to do:add unsqeeze along the second dim here
+        return ids
+
+
+gpts=GPT()  
+print(gpts.generate(test_random,temprature=0.1,top_k=1))
