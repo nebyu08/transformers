@@ -14,8 +14,8 @@ class CfgNonde:
     def __init__(self,**kwargs):
         self.__dict__.update(kwargs)
     def __str__(self):
-        return self._return_string(0)
-    def _return_string(self,indent):
+        return self.__return_string(0)
+    def __return_string(self,indent):
         "this is used for prity output representation of the model"
         parts=[]
         for k,v in  self.__dict__.items():
@@ -56,4 +56,3 @@ class CfgNonde:
             assert hasattr(obj,leaf_key),f"the value {keys[-1]} doesn't exist in the attribute of the structure"
             print(f"the command line attribut that has been set is {(key,val)}")
             setattr(obj,leaf_key,val)
-    

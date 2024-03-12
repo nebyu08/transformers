@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
 import math
+from utils import CfgNonde as CN  #CfgNonde
 
 class Relu(nn.Module):
     def __init__(self):
@@ -28,16 +29,16 @@ class LayerNorm(nn.Module):
 class AttentionHeads(nn.Module):
     def __init__(self,config):
         super().__init__()
-        assert config.emb_size%config.num_head==0,"there is somthing wrong with the emb_size and n_head assignment"
+        assert (config.emb_size%config.num_heads)==0,"there is somthing wrong with the emb_size and n_head assignment"
         #input of the attention of the model
         self.c_attn=torch.nn.Linear(config.emb_size,3*config.emb_size,bias=config.bias)  #the shape is (batch size,number of elements and 3*embedding dimensions)
         #the output projection
-        self.out_proj=torch.nn.Linear(config.num_head*(config.emb_size//config.num_head),config.emb_size,bias=config.bias)
-        #drop out layers
-        self.dropout=nn.Dropout(config.dropout) #this is normal dropout layer
+        self.out_proj=torch.nn.Linear(config.num_heads*(config.emb_size//config.num_heads),config.emb_size,bias=config.bias)
+        #adding the regulrization methods
+        self.att_drop=nn.Dropout(config.att_dropout)
         self.resid_dropout=nn.Dropout(config.resid_dropout)  #this is the residuals output
 
-        self.num_head=config.num_head  #number of heads of the transformer
+        self.num_head=config.num_heads  #number of heads of the transformer
         self.emb_size=config.emb_size  #embedding of the input
 
         #registering a buffer of bias type here
@@ -48,16 +49,16 @@ class AttentionHeads(nn.Module):
         #print(f"the shapes are {B.shape},{T.shape},{C.shape}")
         
         q,k,v=self.c_attn(x).split(self.emb_size,dim=2)  # => ()
-        q=q.view(B,T,self.num_head,C//self.num_head).transpose(1,2)  #this becomes of shape batch size,num heads,number of sequnces and head size
-        k=k.view(B,T,self.num_head,C//self.num_head).transpose(1,2)
-        v=v.view(B,T,self.num_head,C//self.num_head).transpose(1,2)   #the final shape is (B,nh,T,hs)
+        q=q.view(B,T,self.num_heads,C//self.num_head).transpose(1,2)  #this becomes of shape batch size,num heads,number of sequnces and head size
+        k=k.view(B,T,self.num_heads,C//self.num_head).transpose(1,2)
+        v=v.view(B,T,self.num_heads,C//self.num_head).transpose(1,2)   #the final shape is (B,nh,T,hs)
 
         #how are the shapes supposed to be handled...-> (B,nh,T,hs)  * (B,nh,hs,T)  -> (B,nh,T,T)
 
         attn=q@k.transpose(-2,-1)*(1/math.sqrt(k.shape[-1]))  #shape is->  (B,nh,T,T)
         attn=attn.masked_fill(self.bias[:,:,:T,:T]==0,float("-inf"))  
         attn=F.softmax(attn,dim=-1)
-        attn=self.dropout(attn)
+        attn=self.att_drop(attn)
         y=attn@v  #this the final output   #(B,nh,T,T) * (B,nh,T,hs) => (B,nh,T,hs)
         #the current shape is (B,nh,T,hs)  => (B,T,C) input => output both must have the same shape
         y=y.transpose(1,2).contiguous().view(B,T,C)
@@ -65,18 +66,6 @@ class AttentionHeads(nn.Module):
         #time for the dropout
         y=self.resid_dropout(self.out_proj(y))
         return y
-
-#this is the defualt state of the transformer
-@dataclass
-class default_config:
-    block_size=1024
-    emb_size=768
-    num_head=12
-    dropout=0.0
-    resid_dropout=0.1
-    bias=True
-    num_mlp=6
-
 
 class Block(nn.Module):
     def __init__(self,config):
@@ -100,4 +89,129 @@ class Block(nn.Module):
         r1=self.ln1(self.attn(x))+x
         r2=self.mlpf(r1)+r1
         return r2
-class 
+
+    
+class GPT(nn.Module):
+    """this is the all the where all the configuration comes to build the model.
+    """
+    @staticmethod
+    def get_default_config():    
+        C=CN()  #an instance of the yacs(yet another configuration)
+        C.n_layers=None
+        C.block_size=None
+        C.emb_size=None
+        C.vocab_size=123 #None
+        C.num_heads=None
+        C.att_dropout=0.1
+        C.emb_drop=0.0
+        C.resid_dropout=0.0
+        C.bias=True
+        C.num_mlp=6
+        C.block_size=123 #None
+        C.model_type="gpt2"  #this is the equivalent of none for string present here 
+        return C
+
+    def __init__(self, config=None):
+        super().__init__()
+        if config is None:
+            config=GPT.get_default_config()
+
+        assert config.block_size is not None,"must setup the block size" 
+        assert config.vocab_size is not None
+
+        params_given=all([config.n_layers is not None,config.num_heads is not None,config.emb_size is not None]) #raised if all are true or all are false
+        type_given=config.model_type is not None
+        assert type_given^params_given,"either specify the modl type or give the hyper-parameters." #this makes either the model is given or the parameters of the model is given
+
+        
+        self.transformes=nn.ModuleDict(dict(
+            wte=nn.Embedding(config.vocab_size,config.emb_size),  #this is the word to embdding dimension
+            etp=nn.Embedding(config.block_size,config.emb_size),  #this is adding of the positional embedding to each tokens(embdding know)
+            drop=nn.Dropout(config.emb_drop),
+            blocks=nn.ModuleList([Block(config) for _ in range(config.n_layers)]),
+            ly_n=nn.Dropout(config.resid_dropout)
+        ))
+        #this is the last layer(the language model head)
+        self.lm_head=nn.Linear(config.emb_size,config.vocab_size)
+
+        if type_given:
+            config.merge_from_dict({
+                'openai-gpt':   dict(n_layer=12, n_head=12, n_embd=768),  # 117M params
+                # GPT-2 configs
+                'gpt2':         dict(n_layer=12, n_head=12, n_embd=768),  # 124M params
+                'gpt2-medium':  dict(n_layer=24, n_head=16, n_embd=1024), # 350M params
+                'gpt2-large':   dict(n_layer=36, n_head=20, n_embd=1280), # 774M params
+                'gpt2-xl':      dict(n_layer=48, n_head=25, n_embd=1600), # 1558M params
+                # Gophers
+                'gopher-44m':   dict(n_layer=8, n_head=16, n_embd=512),
+                # (there are a number more...)
+                # I made these tiny models up
+                'gpt-mini':     dict(n_layer=6, n_head=6, n_embd=192),
+                'gpt-micro':    dict(n_layer=4, n_head=4, n_embd=128),
+                'gpt-nano':     dict(n_layer=3, n_head=3, n_embd=48),
+            }[config.model_type])
+        
+        if config.model_type is None:
+            print("the modely type is not defineds or its custom made.")
+
+        #parameter initialization
+        self.apply(self._init_weight)
+        
+        #weight initilization for the output projection of the transformer
+        for pn,p in self.named_parameters():
+            if pn.endswith("out_proj.weight"):
+                torch.nn.init.normal_(p,mean=0,std=1)
+        num_params=sum(p.numel() for p in self.parameters())
+        print(f"the number of parameters is {num_params/1e6}M")
+
+    def _init_weight(self,module):
+        "different part of the configuration get to be initialized"
+        if isinstance(module,nn.Linear):
+            torch.nn.init.normal_(module.weight,mean=0,std=0.2)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module,nn.Embedding):
+            torch.nn.init.normal_(module.weight,mean=0,std=0.02)
+        elif isinstance(module,nn.LayerNorm):
+            torch.nn.init.zeros_(module.bias)
+            torch.nn.init.ones_(module.weight)
+
+    def _confiure_optimizer(self,trainer_config):
+        """for is used for making the optimization process of torch faster.
+        """
+        decay=set()
+        no_decay=set()
+        grad_modules=[nn.Linear,]  #this has been open on purpose
+        nograd_modules=[nn.Embedding,nn.LayerNorm]
+        for mn,m in self.named_modules():
+            for pn,p in m.named_parameters():
+                #there seems to be open for change here in the fpn=pn
+
+                #the full path name of the parameters and modules is
+                fpn="%s.%s"%(mn,pn) if mn else pn
+                if pn.ends_with("bias"):
+                    no_decay.add(fpn)
+                elif pn.ends_with("weight") and isinstance(m,grad_modules):  #if its is part of the grad list
+                    decay.add(fpn)
+                elif pn.ends_with("weight") and isinstance(m,nograd_modules):   #if it is not part of the no grad list
+                    no_decay.add(fpn)
+        
+        tot_params={pn:p for pn,p in self.named_parameters()}
+        union_params=decay | no_decay
+        inter_params=decay & no_decay
+        
+        assert len(inter_params)==0,"there seems to be an overlap between the gradient and non gradient taking weights"
+        assert len(tot_params.keys()) - len(union_params)==0,"the total number of params is not eequal with the union of parameters"
+        #creating a dictionary with the necssary info.
+
+        optim_groups = [
+            {"params": [tot_params[pn] for pn in sorted(list(decay))], "weight_decay": trainer_config.weight_decay},
+            {"params": [tot_params[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0}
+        ]
+
+        optimizer=torch.optim.Adam(optim_groups,lr=trainer_config.lr)
+        return optimizer
+
+
+gpts=GPT()
+print(gpts.config.__str__())
