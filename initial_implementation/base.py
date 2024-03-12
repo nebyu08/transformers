@@ -262,6 +262,3 @@ class GPT(nn.Module):
             ids=torch.cat((ids,ids_next),dim=1)  #to do:add unsqeeze along the second dim here
         return ids
 
-
-gpts=GPT()  
-print(gpts.generate(test_random,temprature=0.1,top_k=1))
