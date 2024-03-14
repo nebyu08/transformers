@@ -155,8 +155,8 @@ class Encoder:
 def get_file(remote_path,local_path):
     """get files from some remote file and it moves it into my local repo"""
     #check whether a directory exitst 
-    if not os.path.file(local_path):
-         raise FileNotFoundError("the directory you given me doesn't exist.")
+    # if not os.path.isfilefile(local_path):
+    #      raise FileNotFoundError("the directory you given me doesn't exist.")
     print("downloading files...")
     with open(local_path,"wb") as f:
         file=requests.get(remote_path)
@@ -183,12 +183,12 @@ def get_encoder():
     #os.mkdir(local_vocab)
     get_file(remote_vocab,local_vocab)
     #save the BPE into a merge bytes 
-    with open(local_vocab,"r",) as f:
+    with open(local_vocab,"r",encoding="utf-8") as f:
         byte_data=f.read()
     
     #first and last line are blanks so we need to remove them
     byte_merges=[tuple(pairs.split()) for pairs in byte_data.split("\n")[1:-1]]
-    assert byte_merges==50257
+    assert len(byte_merges)==50257
     #lets make a contructor 
     cn=Encoder(encoder,byte_merges)  #returns the
     return cn  
@@ -209,16 +209,15 @@ class BPETokinizer:
 
 
 #lets experiment
-text="my name is nebiyu youhannes."
-# e=get_encoder()
-# r=e.encode_and_show_work(text)
+text="my name is miles dread."
+e=get_encoder()
+r=e.encode_and_show_work(text)
 
-# print(f"text is:{text}")
-# tokens=r["token"]
-
-# print(f"token is {tokens}")
-# for part in r["parts"]:
-#     print(part)
+print(f"text is:{text}")
+tokens=r["token"]
+print(f"token is {tokens}")
+for part in r["parts"]:      
+     print(part)
 
 # print(f"the final output is: {r['token_idx']}")
 #
@@ -226,4 +225,4 @@ bpe_tokenizer=BPETokinizer()
 bpe_tokenizer(text)
 
 #manually integrate the values
-vocab=json
+#vocab=json
