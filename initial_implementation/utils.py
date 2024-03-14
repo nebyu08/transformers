@@ -56,4 +56,3 @@ class CfgNonde:
             assert hasattr(obj,leaf_key),f"the value {keys[-1]} doesn't exist in the attribute of the structure"
             print(f"the command line attribut that has been set is {(key,val)}")
             setattr(obj,leaf_key,val)
-    
