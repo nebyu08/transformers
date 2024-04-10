@@ -98,7 +98,6 @@ class GPT(nn.Module):
     def get_default_config():    
         C=CN()  #an instance of the yacs(yet another configuration)
         C.n_layer=2
-        C.block_size=12
         C.emb_size=300
         C.vocab_size=123 #None
         C.num_heads=5
@@ -176,7 +175,7 @@ class GPT(nn.Module):
             torch.nn.init.zeros_(module.bias)
             torch.nn.init.ones_(module.weight)
 
-    def _confiure_optimizer(self,trainer_config):
+    def confiure_optimizer(self,trainer_config):
         """for is used for making the optimization process of torch faster.
         """
         decay=set()
@@ -261,4 +260,3 @@ class GPT(nn.Module):
             #concatinate the values
             ids=torch.cat((ids,ids_next),dim=1)  #to do:add unsqeeze along the second dim here
         return ids
-

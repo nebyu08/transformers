@@ -1,5 +1,5 @@
 import torch
-import regex as re
+import regex as re 
 import os
 import requests
 import json
@@ -47,7 +47,8 @@ class Encoder:
         #lets make some cache here
         self.cache={}
 
-    def bpe(self,token):
+    def bpe(self,token:str):
+
         #check wether the word exists in our cache
         if token in self.cache:
             return self.cache[token]
@@ -55,7 +56,7 @@ class Encoder:
         words=tuple(token)
         words_pairs=get_pairs(words)
 
-        #if it can't be paire
+        #if it can't be paired
         if not words_pairs:
             return token
         
@@ -104,9 +105,9 @@ class Encoder:
         bpe_idx=[]  #byte that have been turned into index
         for token in tokens:
             stream_bytes=token.encode("utf-8")
-            token_translated=["".join(self.byte_encoder(i)) for i in stream_bytes]
+            token_translated="".join(self.byte_encoder(i) for i in stream_bytes)
             #lets merge the tokens
-            token_merged=self.bpe(token_translated).split(" ")
+            token_merged=self.bpe(token_translated).split(' ') 
             #turning it back to words
             token_words=[self.encoder[i] for i in token_merged]
             bpe_idx.extend(token_words)
@@ -118,13 +119,14 @@ class Encoder:
         Args:
             text (str): inputed text
         """
+       # print("this is the text to encode that the model sees:",text)
         tokens=re.findall(self.re,text)
         bpe_idx=[]
-        parts={}
+        parts=[]
         for token in tokens:
             token_bytes=token.encode("utf-8")
-            token_byte_translated=["".join(self.byte_encoder[i] for i in token_bytes)]
-            token_merged=self.bpe(token_byte_translated).split(" ")
+            token_byte_translated="".join(self.byte_encoder[i] for i in token_bytes)
+            token_merged=self.bpe(token_byte_translated).split(' ')
             token_words=[self.encoder(token_byte) for token_byte in token_merged]
             bpe_idx.extend(token_words)
             parts.append({
@@ -139,7 +141,7 @@ class Encoder:
             "parts":parts,
             "tokens":tokens
         }
-        return parts
+        return outs
     
     def decode(self,byte_stream):
         #byte decode
@@ -152,6 +154,7 @@ class Encoder:
         text=byte_decode.decode("utf-8",errors="replace")
         return text 
     
+#this are helper functions that are gonna help in vocab,dicitonary and model building stuff
 def get_file(remote_path,local_path):
     """get files from some remote file and it moves it into my local repo"""
     #check whether a directory exitst 
@@ -169,8 +172,8 @@ def get_encoder():
     
     #lets make the encoder 
     encoder_local_path=os.path.join(cached_dir,"encoder.json")
-    remote_encoder_path="https://openaipublic.blob.core.windows.net/gpt-2/models/124M/encoder.json"
-    get_file(remote_encoder_path,encoder_local_path)      
+   # remote_encoder_path="https://openaipublic.blob.core.windows.net/gpt-2/models/124M/encoder.json"
+   # get_file(remote_encoder_path,encoder_local_path)      
     
     #lets load our encoder into our class
     with open(encoder_local_path,"r") as f:
@@ -181,19 +184,18 @@ def get_encoder():
     local_vocab=os.path.join(cached_dir,"vocab.bpe")
     remote_vocab="https://openaipublic.blob.core.windows.net/gpt-2/models/124M/vocab.bpe"
     #os.mkdir(local_vocab)
-    get_file(remote_vocab,local_vocab)
+    #get_file(remote_vocab,local_vocab)
     #save the BPE into a merge bytes 
     with open(local_vocab,"r",encoding="utf-8") as f:
         byte_data=f.read()
     
     #first and last line are blanks so we need to remove them
     byte_merges=[tuple(pairs.split()) for pairs in byte_data.split("\n")[1:-1]]
-    assert len(byte_merges)==50257
+    assert len(byte_merges)==50000
     #lets make a contructor 
-    cn=Encoder(encoder,byte_merges)  #returns the
+    cn=Encoder(encoder,byte_merges)  #returns the classs
     return cn  
     
-
 class BPETokinizer:
     def __inti__(self):
         self.encoder=get_encoder()
@@ -209,20 +211,23 @@ class BPETokinizer:
 
 
 #lets experiment
-text="my name is miles dread."
+text="my name is miles've dread and i'll."
 e=get_encoder()
 r=e.encode_and_show_work(text)
 
 print(f"text is:{text}")
-tokens=r["token"]
+tokens=r['tokens']
 print(f"token is {tokens}")
+
 for part in r["parts"]:      
-     print(part)
+      print(part)
 
-# print(f"the final output is: {r['token_idx']}")
-#
-bpe_tokenizer=BPETokinizer()
-bpe_tokenizer(text)
+print("ending of the part dictionary")
 
-#manually integrate the values
-#vocab=json
+print(f"the final output is: {r['token_idx']}")
+
+#bpe_tokenizer=BPETokinizer()
+#bpe_tokenizer(text)
+
+print("the encoder definintion is here:")
+print(type(r))

@@ -1,12 +1,13 @@
 import os
 import requests
+import regex as re
 
 current_dir=os.getcwd()
 new_dir="ned_with_dreads"
 new_dir=os.path.join(current_dir,new_dir)
 os.makedirs(new_dir,exist_ok=True)
 
-print("created new directory.")
+#print("created new directory.")
 
 
 #downloading files into a file
@@ -22,3 +23,7 @@ to_download="C:/Users/nebiy/Documents/deep_learning_scratch"
 
 path_1="C:/Users/nebiy/Documents/deep_learning_scratch/Transformer_implementation"
 print(os.getcwd())
+p=re.compile(r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
+temp="this is crax'ill u9"
+clean_temp=re.findall(p,temp)
+print(clean_temp)
