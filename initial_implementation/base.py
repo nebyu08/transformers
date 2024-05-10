@@ -23,7 +23,7 @@ class LayerNorm(nn.Module):
         self.ndim=ndim
         self.weight=nn.Parameter(torch.ones(ndim))
         self.bias=nn.Parameter(torch.zeros(ndim)) if bias else None
-    def forward(self,x,norm_shape,eps=1e-05,):
+    def forward(self,x,norm_shape,eps=1e-05):
         return F.layer_norm(x,norm_shape,self.weight,self.bias,eps)
     
 class AttentionHeads(nn.Module):

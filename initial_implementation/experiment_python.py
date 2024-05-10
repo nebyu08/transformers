@@ -1,20 +1,10 @@
-import regex as re
+from bpe import Encoder,get_encoder,BPETokinizer,get_pairs,byte_to_unicode
 
-class tokenizer:
-    def __init__(self):
-        self.pattern=re.compile(r"'ve|'ll")
+My_Encoder=get_encoder()  #initializing the encoder
 
-    def token(self,text):
-        # print("text:",text)
-        tokenized=re.findall(self.pattern,text)
-        print(tokenized)
+text="hello my name is nebiyu. and I "
 
-        return tokenized
+#encoded_text=Encoder.encode_and_show_work(text=text)
+print(type(My_Encoder))
 
-
-temp=tokenizer()
-text="this is just random text ha've"
-print(list(temp.token(text)))
-
-# tokenize=re.compile(r"""'ve|'er|'ll|""")
-# print(re.findall(tokenize,text))
+print(My_Encoder.bpe("text"))

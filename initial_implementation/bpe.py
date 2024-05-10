@@ -22,6 +22,10 @@ def byte_to_unicode():
     return d
 
 def get_pairs(words):
+    #precondition before execution
+   # assert type(words)==bytes,"the inputed text is not byte type."
+    assert len(words)>0,"empty input has been given."
+
     f_ch=words[0]
     pairs=set()
     for i in words[1:]:
@@ -31,7 +35,9 @@ def get_pairs(words):
 
 class Encoder:
     def __init__(self,encoder,byte_merges):
+        #byte merge ranked
         self.byte_ranks=dict(zip(byte_merges,range(len(byte_merges))))
+        
         #this is byte operation
         self.byte_encoder=byte_to_unicode()
         self.byte_decoder={j:i for i,j in self.byte_encoder.items()}
@@ -40,7 +46,6 @@ class Encoder:
         self.encoder=encoder
         self.decoder={v:k for k,v in self.encoder.items()}
 
-        #self.byte_ranks
         #lets do some preprocessing here
         self.re=re.compile(r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{N}+| ?[\{L}+|?\s\p{L}\p{N}]+\s+(?!\S|\s)""")
 
@@ -84,8 +89,9 @@ class Encoder:
                 else:
                     new_word.append(words[i])
                     i+=1
+
             #lets update the merging values here
-            word=tuple(new_word)  #the new
+            word=tuple(new_word)  
             if len(word)==1:
                 break
             else:
@@ -105,12 +111,13 @@ class Encoder:
         bpe_idx=[]  #byte that have been turned into index
         for token in tokens:
             stream_bytes=token.encode("utf-8")
-            token_translated="".join(self.byte_encoder(i) for i in stream_bytes)
+            token_translated="".join(self.byte_encoder[i] for i in stream_bytes)
             #lets merge the tokens
-            token_merged=self.bpe(token_translated).split(' ') 
+            token_merged=self.bpe(token_translated).split('') 
             #turning it back to words
             token_words=[self.encoder[i] for i in token_merged]
             bpe_idx.extend(token_words)
+
         return bpe_idx
     
     def encode_and_show_work(self,text):
@@ -127,7 +134,7 @@ class Encoder:
             token_bytes=token.encode("utf-8")
             token_byte_translated="".join(self.byte_encoder[i] for i in token_bytes)
             token_merged=self.bpe(token_byte_translated).split(' ')
-            token_words=[self.encoder(token_byte) for token_byte in token_merged]
+            token_words=[self.encoder[token_byte] for token_byte in token_merged]
             bpe_idx.extend(token_words)
             parts.append({
                 "token":token,
@@ -145,24 +152,33 @@ class Encoder:
     
     def decode(self,byte_stream):
         #byte decode
-        decode_bytes=(self.decoder(token) for token in byte_stream)
-        #map some "ugly values to normal strings"
+        decode_bytes=[self.decoder(token) for token in byte_stream]
+        #map some bytes into strings
         byte_flat="".join(decode_bytes)
         #decode at the byte level
-        byte_decode=[self.byte_decoder(i) for i in byte_flat]
+        byte_decode=bytearray([self.byte_decoder(i) for i in byte_flat])
         #decode using the utf-8
         text=byte_decode.decode("utf-8",errors="replace")
         return text 
     
 #this are helper functions that are gonna help in vocab,dicitonary and model building stuff
-def get_file(remote_path,local_path):
+def get_file(remote_file,local_file):
     """get files from some remote file and it moves it into my local repo"""
-    #check whether a directory exitst 
-    # if not os.path.isfilefile(local_path):
-    #      raise FileNotFoundError("the directory you given me doesn't exist.")
-    print("downloading files...")
-    with open(local_path,"wb") as f:
-        file=requests.get(remote_path)
+    # #check whether the file exitst exitst 
+    # if not os.path.isfile(local_file):
+    #        raise FileNotFoundError("the directory you given me doesn't exist.")
+
+
+
+    #check if the parent directory of
+    parent_dir=os.path.dirname(local_file)
+    if not os.path.exists(parent_dir):
+        raise FileNotFoundError(f"the parent directory {parent_dir} doesn't exist")
+    
+
+    print(f"downloading files... {os.path.basename(local_file)}")
+    with open(local_file,"wb") as f:
+        file=requests.get(remote_file)
         f.write(file.content)
 
 def get_encoder():
@@ -171,19 +187,20 @@ def get_encoder():
     os.makedirs(cached_dir,exist_ok=True)
     
     #lets make the encoder 
-    encoder_local_path=os.path.join(cached_dir,"encoder.json")
-   # remote_encoder_path="https://openaipublic.blob.core.windows.net/gpt-2/models/124M/encoder.json"
-   # get_file(remote_encoder_path,encoder_local_path)      
+    encoder_local_file=os.path.join(cached_dir,"encoder.json")
+    remote_encoder_path="https://openaipublic.blob.core.windows.net/gpt-2/models/124M/encoder.json"
+    #get_file(remote_encoder_path,encoder_local_file)      
     
     #lets load our encoder into our class
-    with open(encoder_local_path,"r") as f:
+    with open(encoder_local_file,"r") as f:
         encoder=json.load(f)
     assert len(encoder)==50257,"there is something wrong with the length of your encoder." #0-256 are taken while the 50,000 arethe vocab size
 
     #handle the vocabulary 
     local_vocab=os.path.join(cached_dir,"vocab.bpe")
     remote_vocab="https://openaipublic.blob.core.windows.net/gpt-2/models/124M/vocab.bpe"
-    #os.mkdir(local_vocab)
+    #os.makedirs(local_vocab,exist_ok=True)
+
     #get_file(remote_vocab,local_vocab)
     #save the BPE into a merge bytes 
     with open(local_vocab,"r",encoding="utf-8") as f:
@@ -191,43 +208,28 @@ def get_encoder():
     
     #first and last line are blanks so we need to remove them
     byte_merges=[tuple(pairs.split()) for pairs in byte_data.split("\n")[1:-1]]
-    assert len(byte_merges)==50000
+    assert len(byte_merges)==50000,"there is something wrong with loaded number of merges."
     #lets make a contructor 
     cn=Encoder(encoder,byte_merges)  #returns the classs
+
     return cn  
     
 class BPETokinizer:
-    def __inti__(self):
+    def __init__(self):
         self.encoder=get_encoder()
 
     def __call__(self,text):
         assert isinstance(text,str)
         ids=[self.encoder.encode(text)]
-        out=torch.tensor(ids,dtype=torch.long)
+        out=torch.tensor([ids],dtype=torch.long)
+        return out
 
     def decode(self,ids):
         text=self.encoder.decode(ids.tolist())
         return text
+    
 
+text="hello my name is nebiyu. and I "
+My_Encoder=BPETokinizer()
 
-#lets experiment
-text="my name is miles've dread and i'll."
-e=get_encoder()
-r=e.encode_and_show_work(text)
-
-print(f"text is:{text}")
-tokens=r['tokens']
-print(f"token is {tokens}")
-
-for part in r["parts"]:      
-      print(part)
-
-print("ending of the part dictionary")
-
-print(f"the final output is: {r['token_idx']}")
-
-#bpe_tokenizer=BPETokinizer()
-#bpe_tokenizer(text)
-
-print("the encoder definintion is here:")
-print(type(r))
+print(My_Encoder(text))
