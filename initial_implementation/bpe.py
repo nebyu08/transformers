@@ -1,5 +1,5 @@
 import torch
-import regex as re 
+import regex as re
 import os
 import requests
 import json
@@ -40,20 +40,21 @@ class Encoder:
         
         #this is byte operation
         self.byte_encoder=byte_to_unicode()
-        self.byte_decoder={j:i for i,j in self.byte_encoder.items()}
+        self.byte_decoder={v:k for k,v in self.byte_encoder.items()}
         
         #another encoder and decoder on a word level
         self.encoder=encoder
         self.decoder={v:k for k,v in self.encoder.items()}
 
-        #lets do some preprocessing here
-        self.re=re.compile(r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{N}+| ?[\{L}+|?\s\p{L}\p{N}]+\s+(?!\S|\s)""")
+        #the pattern that is going to be extracted
+        self.re = re.compile(r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
+
+
 
         #lets make some cache here
         self.cache={}
 
-    def bpe(self,token:str):
-
+    def bpe(self,token):
         #check wether the word exists in our cache
         if token in self.cache:
             return self.cache[token]
@@ -108,15 +109,19 @@ class Encoder:
             text (str): text to be encoded
         """
         tokens=re.findall(self.re,text)
-        bpe_idx=[]  #byte that have been turned into index
+        #tokens=self.re.findall(text)
+
+        #tokens=text.split(' ')
+        print(f"inside the enocde fn: this are the tokens:{tokens}")
+        bpe_idx=[]  #byte that have been turned into index(nums basically)
         for token in tokens:
-            stream_bytes=token.encode("utf-8")
-            token_translated="".join(self.byte_encoder[i] for i in stream_bytes)
+            stream_bytes=token.encode("utf-8")   #turn it into bytes
+            token_translated="".join(self.byte_encoder[i] for i in stream_bytes)   #turn it into unicode
             #lets merge the tokens
             token_merged=self.bpe(token_translated).split('') 
             #turning it back to words
-            token_words=[self.encoder[i] for i in token_merged]
-            bpe_idx.extend(token_words)
+            token_words=[self.encoder[i] for i in token_merged]  #using GPT-2 encoder to turn text into numbers
+            bpe_idx.extend(token_words)   #making one single encoded text format
 
         return bpe_idx
     
@@ -128,6 +133,7 @@ class Encoder:
         """
        # print("this is the text to encode that the model sees:",text)
         tokens=re.findall(self.re,text)
+        #tokens=self.re.findall(text)
         bpe_idx=[]
         parts=[]
         for token in tokens:
@@ -167,8 +173,6 @@ def get_file(remote_file,local_file):
     # #check whether the file exitst exitst 
     # if not os.path.isfile(local_file):
     #        raise FileNotFoundError("the directory you given me doesn't exist.")
-
-
 
     #check if the parent directory of
     parent_dir=os.path.dirname(local_file)
@@ -220,16 +224,16 @@ class BPETokinizer:
 
     def __call__(self,text):
         assert isinstance(text,str)
-        ids=[self.encoder.encode(text)]
+        ids=self.encoder.encode(text)
+        print(f"this are the ids that are returned from the fn:{ids}")
         out=torch.tensor([ids],dtype=torch.long)
         return out
 
     def decode(self,ids):
         text=self.encoder.decode(ids.tolist())
         return text
-    
 
-text="hello my name is nebiyu. and I "
-My_Encoder=BPETokinizer()
-
-print(My_Encoder(text))
+text="hello my name is nebiyu"
+bp_tokenizer=BPETokinizer()
+out=bp_tokenizer(text)
+print(out)
