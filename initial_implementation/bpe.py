@@ -232,11 +232,11 @@ class Encoder:
     
     def decode(self,byte_stream):
         #byte decode
-        decode_bytes=[self.decoder(token) for token in byte_stream]
+        decode_bytes=[self.decoder[token] for token in byte_stream]
         #map some bytes into strings
         byte_flat="".join(decode_bytes)
         #decode at the byte level
-        byte_decode=bytearray([self.byte_decoder(i) for i in byte_flat])
+        byte_decode=bytearray([self.byte_decoder[i] for i in byte_flat])
         #decode using the utf-8
         text=byte_decode.decode("utf-8",errors="replace")
         return text 
@@ -306,3 +306,11 @@ class BPETokenizer:
     def decode(self,ids):
         text=self.encoder.decode(ids.tolist())
         return text
+    
+
+p="this is encoding"
+encoder=get_encoder()
+encoded=encoder.encode(p)
+print(f"this is encoding:{encoded}")
+decoded=encoder.decode(encoded)
+print(f"this is decoding:{decoded}")
