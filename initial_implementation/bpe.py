@@ -54,54 +54,124 @@ class Encoder:
         #lets make some cache here
         self.cache={}
 
-    def bpe(self,token):
-        #check wether the word exists in our cache
+    def bpe(self, token):
+       
+        # token is a string of one individual 'word', after byte encoding, e.g. 'Ġthere'
+
+        # memoization, for efficiency
         if token in self.cache:
             return self.cache[token]
-        
-        words=tuple(token)
-        words_pairs=get_pairs(words)
 
-        #if it can't be paired
-        if not words_pairs:
+        word = tuple(token) # individual characters that make up the token, in a tuple
+        pairs = get_pairs(word) # get all bigrams
+
+        if not pairs:
             return token
-        
+
         while True:
-            biagram=min(words_pairs,key= lambda p:self.byte_ranks.get(p,float("inf")))
-            #condition for exit is that ther are no more pairs that are registered in our vocab
-            if biagram not in self.byte_ranks:
-                break
-            i=0
-            first,second=biagram 
-            new_word=[]
-            #merging the most repeated part of the code
-            while i < len(words):
+
+            # find the next lowest rank bigram that can be merged
+            bigram = min(pairs, key = lambda pair: self.byte_ranks.get(pair, float('inf')))
+            if bigram not in self.byte_ranks:
+                break # no more bigrams are eligible to be merged
+            first, second = bigram
+
+            # we will now replace all occurences of (first, second) in the list of current
+            # words into one merged token first_second, in the output list new_words
+            new_word = []
+            i = 0
+            while i < len(word):
+
+                # find the next occurence of first in the sequence of current words
                 try:
-                    j=words.index(first,i)
-                    new_word.extend(words[i:j]) #charachter that are not out of paired value
-                    i=j
+                    j = word.index(first, i)
+                    new_word.extend(word[i:j])
+                    i = j
                 except:
-                    new_word.extend(words[i:])
+                    new_word.extend(word[i:])
                     break
 
-                if i<len(words)-1 and words[i]==first and words[i+1]==second:
+                # if this occurence is also followed by second, then merge them into one
+                if word[i] == first and i < len(word)-1 and word[i+1] == second:
                     new_word.append(first+second)
-                    i+=2
+                    i += 2
                 else:
-                    new_word.append(words[i])
-                    i+=1
+                    new_word.append(word[i])
+                    i += 1
 
-            #lets update the merging values here
-            word=tuple(new_word)  
-            if len(word)==1:
+            # all occurences of (first, second) have been merged to first_second
+            new_word = tuple(new_word)
+            word = new_word
+            if len(word) == 1:
                 break
             else:
-                words_pairs=get_pairs(word)
+                pairs = get_pairs(word)
 
-        final_form="".join(word)
-        #lets register our token in our cache
-        self.cache[token]=final_form
-        return final_form
+        word = ' '.join(word)
+
+        # cache the result and return
+        self.cache[token] = word
+        return word
+
+
+    # def bpe(self,token):
+    #     #check wether the word exists in our cache
+    #     if token in self.cache:
+    #         return self.cache[token]
+        
+    #     #print(f"token:{token}")
+    
+    #     words=tuple(token)
+    #     words_pairs=get_pairs(words)
+
+    #     #if it can't be paired
+    #     if not words_pairs:
+    #         return token
+        
+    #     while True:
+    #         print(f"token:{token}")
+    #         print(f"words:{words}")
+    #         print(F"word paris:{words_pairs}")
+
+    #         biagram=min(words_pairs,key= lambda p:self.byte_ranks.get(p,float("inf")))
+    #         print(f"bigram:{biagram}")
+    #         #condition for exit is that ther are no more pairs that are registered in our vocab
+    #         if biagram not in self.byte_ranks:
+    #             break
+    #         i=0
+    #         first,second=biagram 
+    #         print(f"first:{first} and second:{second}")
+    #         new_word=[]
+    #         #merging the most repeated part of the code
+    #         while i < len(words):
+    #             try:
+    #                 j=words.index(first,i)
+    #                 new_word.extend(words[i:j]) #charachter that are not out of paired value
+    #                 i=j
+    #             except:
+    #                 new_word.extend(words[i:])
+    #                 break
+                
+    #             print(f"i:{i} and j:{j}")
+
+    #             if i<len(words)-1 and words[i]==first and words[i+1]==second:
+    #                 new_word.append(first+second)
+    #                 i+=2
+    #             else:
+    #                 new_word.append(words[i])
+    #                 i+=1
+
+    #         #lets update the merging values here
+    #         word=tuple(new_word)  
+    #         if len(word)==1:
+    #             break
+    #         else:
+    #             words_pairs=get_pairs(word)
+
+    #     final_form="".join(word)
+    #     #lets register our token in our cache
+    #     self.cache[token]=final_form
+    #     return final_form
     
     def encode(self,text):
         """word comes in numbers comes out
@@ -111,15 +181,19 @@ class Encoder:
         tokens=re.findall(self.re,text)
         #tokens=self.re.findall(text)
 
-        #tokens=text.split(' ')
-        print(f"inside the enocde fn: this are the tokens:{tokens}")
+        #tokens=text.split('')
+        #print(f"inside the enocde fn: this are the tokens:{tokens}")
         bpe_idx=[]  #byte that have been turned into index(nums basically)
         for token in tokens:
+            #print(f"token: {token}")
             stream_bytes=token.encode("utf-8")   #turn it into bytes
+            #print(f"stream byte:{stream_bytes}")
             token_translated="".join(self.byte_encoder[i] for i in stream_bytes)   #turn it into unicode
             #lets merge the tokens
-            token_merged=self.bpe(token_translated).split('') 
+            #print(f"token translate:{token_translated}")
+            token_merged=self.bpe(token_translated).split(' ') 
             #turning it back to words
+           # print(f"token merged:{token_merged}")
             token_words=[self.encoder[i] for i in token_merged]  #using GPT-2 encoder to turn text into numbers
             bpe_idx.extend(token_words)   #making one single encoded text format
 
@@ -218,22 +292,17 @@ def get_encoder():
 
     return cn  
     
-class BPETokinizer:
+class BPETokenizer:
     def __init__(self):
         self.encoder=get_encoder()
 
     def __call__(self,text):
         assert isinstance(text,str)
         ids=self.encoder.encode(text)
-        print(f"this are the ids that are returned from the fn:{ids}")
+        #print(f"this are the ids that are returned from the fn:{ids}")
         out=torch.tensor([ids],dtype=torch.long)
         return out
 
     def decode(self,ids):
         text=self.encoder.decode(ids.tolist())
         return text
-
-text="hello my name is nebiyu"
-bp_tokenizer=BPETokinizer()
-out=bp_tokenizer(text)
-print(out)
