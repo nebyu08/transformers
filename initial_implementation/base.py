@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
 import math
-from utils import CfgNonde as CN  #CfgNonde
+from utils import CfgNode as CN  #CfgNonde
 
 class Relu(nn.Module):
     def __init__(self):
@@ -97,17 +97,20 @@ class GPT(nn.Module):
     @staticmethod
     def get_default_config():    
         C=CN()  #an instance of the yacs(yet another configuration)
-        C.n_layer=2
-        C.emb_size=300
-        C.vocab_size=123 #None
-        C.num_heads=5
+        C.n_layer=None
+        C.emb_size=None
+       
+        C.vocab_size=None #None
+        C.num_heads=None
+        
         C.att_dropout=0.1
-        C.emb_drop=0.0
-        C.resid_dropout=0.0
-        C.bias=True
-        C.num_mlp=6
-        C.block_size=123 #None
-        C.model_type=None  #this is the equivalent of none for string present here 
+        C.emb_drop=0.1
+        C.resid_dropout=0.1
+       
+        C.num_mlp=None
+        C.block_size=None #None
+        C.model_type="gpt2"  #this is the equivalent of none for string present here 
+
         return C
 
     def __init__(self, config=None):
@@ -119,9 +122,10 @@ class GPT(nn.Module):
         assert config.vocab_size is not None,"must setup the vocab size"
         self.block_size=config.block_size
 
+        #checking whether the model type is given or parameters of a model are given
         params_given=all([config.n_layer is not None,config.num_heads is not None,config.emb_size is not None]) #raised if all are true or all are false
         type_given=config.model_type is not None
-        assert type_given^params_given,"either specify the modl type or give the hyper-parameters." #this makes either the model is given or the parameters of the model is given
+        assert type_given^params_given,"either specify the model type or give the hyper-parameters." #this makes either the model is given or the parameters of the model is given
   
         self.transformer=nn.ModuleDict(dict(
             wte=nn.Embedding(config.vocab_size,config.emb_size),  #this is the word to embdding dimension
@@ -226,6 +230,7 @@ class GPT(nn.Module):
         logits=self.lm_head(x)  #this is the logits
         loss=None
 
+        #this means that the model is in training mode
         if targets is not None:
             loss=F.cross_entropy(logits.view(-1,logits.size(-1)),targets.view(-1)) 
 
@@ -260,3 +265,4 @@ class GPT(nn.Module):
             #concatinate the values
             ids=torch.cat((ids,ids_next),dim=1)  #to do:add unsqeeze along the second dim here
         return ids
+    
