@@ -9,7 +9,7 @@ def seed(seed_num=42):
     np.random.seed(seed_num)
     torch.manual_seed(seed_num)
 
-class CfgNonde:
+class CfgNode:
     """this is the implementaion of the YACS:yet another configuration."""
     def __init__(self,**kwargs):
         self.__dict__.update(kwargs)
