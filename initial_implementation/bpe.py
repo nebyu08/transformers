@@ -307,10 +307,3 @@ class BPETokenizer:
         text=self.encoder.decode(ids.tolist())
         return text
     
-
-p="this is encoding"
-encoder=get_encoder()
-encoded=encoder.encode(p)
-print(f"this is encoding:{encoded}")
-decoded=encoder.decode(encoded)
-print(f"this is decoding:{decoded}")
