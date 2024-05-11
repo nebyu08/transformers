@@ -19,7 +19,7 @@ class CfgNode:
         "this is used for prity output representation of the model"
         parts=[]
         for k,v in  self.__dict__.items():
-            if isinstance(v,CfgNonde):
+            if isinstance(v,CfgNode):
                 parts.append("%s:\n"%k)
                 parts.append(v.__return_string(indent+1))
             else:
@@ -29,7 +29,7 @@ class CfgNode:
     
     def to_dict(self):
         "output the elements of the configuration in dictionary format"
-        return {k:v.to_dict() if isinstance(v,CfgNonde) else v for k,v in self.__dict__.items()}
+        return {k:v.to_dict() if isinstance(v,CfgNode) else v for k,v in self.__dict__.items()}
     def merge_from_dict(self,d):
         self.__dict__.update(d)
 
