@@ -1,5 +1,5 @@
 from torch.utils.data import DataLoader
-from utils import CfgNonde as CN
+from utils import CfgNode as CN
 from base import GPT
 import torch
 import torch.nn as nn
