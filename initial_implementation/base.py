@@ -21,7 +21,7 @@ class LayerNorm(nn.Module):
     def __init__(self,ndim,bias):
         super().__init__()
         self.ndim=ndim
-        self.weight=nn.Parameter(torch.ones(ndim))
+        self.weight=nn.Parameter(torch.ones(ndim),bias)
         self.bias=nn.Parameter(torch.zeros(ndim)) if bias else None
     def forward(self,x,norm_shape,eps=1e-05):
         return F.layer_norm(x,norm_shape,self.weight,self.bias,eps)
@@ -70,9 +70,9 @@ class AttentionHeads(nn.Module):
 class Block(nn.Module):
     def __init__(self,config):
         super().__init__()
-        self.ln1=nn.LayerNorm(config.emb_size,config.bias)
+        self.ln1=nn.LayerNorm(config.emb_size,)
         self.attn=AttentionHeads(config)
-        self.ln2=nn.LayerNorm(config.emb_size,config.bias)
+        self.ln2=nn.LayerNorm(config.emb_size)
         #elements of the multi layer perceptron
         
         self.mlp=nn.ModuleDict(dict(
@@ -97,7 +97,7 @@ class GPT(nn.Module):
     @staticmethod
     def get_default_config():    
         C=CN()  #an instance of the yacs(yet another configuration)
-        C.n_layer=None
+        C.n_layer=12
         C.emb_size=None
        
         C.vocab_size=None #None
@@ -107,6 +107,7 @@ class GPT(nn.Module):
         C.emb_drop=0.1
         C.resid_dropout=0.1
        
+        C.bias=False
         C.num_mlp=None
         C.block_size=None #None
         C.model_type="gpt"  #this is the equivalent of none for string present here 
@@ -126,7 +127,27 @@ class GPT(nn.Module):
         params_given=all([config.n_layer is not None,config.num_heads is not None,config.emb_size is not None]) #raised if all are true or all are false
         type_given=config.model_type is not None
         assert type_given^params_given,"either specify the model type or give the hyper-parameters." #this makes either the model is given or the parameters of the model is given
-  
+
+        if type_given:
+            config.merge_from_dict({
+                'openai-gpt':   dict(n_layer=12, num_heads=12, emb_size=768),  # 117M params
+                # GPT-2 configs
+                'gpt2':         dict(n_layer=12, num_heads=12, emb_size=768),  # 124M params
+                'gpt2-medium':  dict(n_layer=24, num_heads=16, emb_size=1024), # 350M params
+                'gpt2-large':   dict(n_layer=36, num_heads=20, emb_size=1280), # 774M params
+                'gpt2-xl':      dict(n_layer=48, num_heads=25, emb_size=1600), # 1558M params
+                # Gophers
+                'gopher-44m':   dict(n_layer=8, num_heads=16, emb_size=512),
+                # (there are a number more...)
+                # I made these tiny models up
+                'gpt-mini':     dict(n_layer=6, num_heads=6, emb_size=192),
+                'gpt-micro':    dict(n_layer=4, num_heads=4, emb_size=128),
+                'gpt-nano':     dict(n_layer=3, num_heads=3, emb_size=48),
+            }[config.model_type])
+        
+        if config.model_type is None:
+            print("the modely type is not defineds or its custom made.")
+
         self.transformer=nn.ModuleDict(dict(
             wte=nn.Embedding(config.vocab_size,config.emb_size),  #this is the word to embdding dimension
             etp=nn.Embedding(config.block_size,config.emb_size),  #this is adding of the positional embedding to each tokens(embdding know)
@@ -137,26 +158,6 @@ class GPT(nn.Module):
         #this is the last layer(the language model head)
         self.lm_head=nn.Linear(config.emb_size,config.vocab_size)
 
-        if type_given:
-            config.merge_from_dict({
-                'openai-gpt':   dict(n_layer=12, n_head=12, emb_size=768),  # 117M params
-                # GPT-2 configs
-                'gpt2':         dict(n_layer=12, n_head=12, emb_size=768),  # 124M params
-                'gpt2-medium':  dict(n_layer=24, n_head=16, emb_size=1024), # 350M params
-                'gpt2-large':   dict(n_layer=36, n_head=20, emb_size=1280), # 774M params
-                'gpt2-xl':      dict(n_layer=48, n_head=25, emb_size=1600), # 1558M params
-                # Gophers
-                'gopher-44m':   dict(n_layer=8, n_head=16, emb_size=512),
-                # (there are a number more...)
-                # I made these tiny models up
-                'gpt-mini':     dict(n_layer=6, n_head=6, emb_size=192),
-                'gpt-micro':    dict(n_layer=4, n_head=4, emb_size=128),
-                'gpt-nano':     dict(n_layer=3, n_head=3, emb_size=48),
-            }[config.model_type])
-        
-        if config.model_type is None:
-            print("the modely type is not defineds or its custom made.")
-
         #parameter initialization
         self.apply(self._init_weight)
         
@@ -164,6 +165,7 @@ class GPT(nn.Module):
         for pn,p in self.named_parameters():
             if pn.endswith("out_proj.weight"):
                 torch.nn.init.normal_(p,mean=0,std=1)
+
         num_params=sum(p.numel() for p in self.parameters())
         print(f"the number of parameters is {num_params/1e6}M")
 
