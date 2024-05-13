@@ -4,25 +4,17 @@ from base import GPT
 import torch
 import torch.nn as nn
 import time
+import os
 
 class Trainer:
+
+    #they have there own configuration
     @staticmethod
     def get_default():
         C=CN()
-        # C.n_layers=12
-        # C.block_size=512
-        # C.emb_size=512
-        # C.vocab_size=50000
-        # C.num_heads=3
-        # C.att_dropout=0.0
-        # C.emb_drop=0.0
-        # # C.resid_dropout=0.1
-        # C.bias=False
-        # C.num_mlp=3
-        # C.model_type=None
         C.device="auto"
         C.max_iter=None
-        C.num_workers=2  #todo change to the number of workers available
+        C.num_workers=os.cpu_count()  #todo change to the number of workers available
         C.batch_size=32
 
     def __init__(self,model,train_dataset,config=None):
@@ -38,7 +30,7 @@ class Trainer:
         self.dataloader=DataLoader(train_dataset,
                                    num_workers=self.num_workers,
                                    batch_size=self.config.batch_size,
-                                   shuffle=False
+                                   shuffle=False,
                                    )  
         self.iter_num=0
         self.iter_time=0  
